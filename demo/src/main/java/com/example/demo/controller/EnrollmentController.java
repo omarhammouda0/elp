@@ -36,7 +36,7 @@ public class EnrollmentController {
         return ResponseEntity.ok ( enrollmentService.getAllEnrollments ( pageable ) );
     }
 
-    //kjujuzjh7u
+    //haw haw haw
 
     @GetMapping("/{id}")
     public ResponseEntity<EnrollmentResponseDto> getEnrollmentById(@PathVariable Long id) {
