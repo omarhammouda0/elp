@@ -1,4 +1,19 @@
 package com.example.demo.service;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import com.example.demo.entity.course.Course;
+import com.example.demo.entity.course.Status;
+import com.example.demo.exception.types.InvalidOperationException;
+import com.example.demo.repo.CourseRepository;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.demo.entity.category.Category;
 import com.example.demo.entity.category.CategoryCreateDto;
 import com.example.demo.entity.category.CategoryResponseDto;
@@ -7,11 +22,6 @@ import com.example.demo.exception.types.DuplicateResourceException;
 import com.example.demo.exception.types.NotFoundException;
 import com.example.demo.mapper.CategoryMapper;
 import com.example.demo.repo.CategoryRepository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Service
 
@@ -19,10 +29,12 @@ public class CategoryService {
 
     private final CategoryRepository categoryRepository;
     private final CategoryMapper categoryMapper;
+    private  final CourseRepository courseRepository;
 
-    public CategoryService(CategoryRepository categoryRepository , CategoryMapper categoryMapper) {
+    public CategoryService(CategoryRepository categoryRepository , CategoryMapper categoryMapper , CourseRepository courseRepository) {
         this.categoryRepository = categoryRepository;
         this.categoryMapper = categoryMapper;
+        this.courseRepository = courseRepository;
     }
 
     private String generateSlug(String name) {
@@ -38,11 +50,11 @@ public class CategoryService {
     }
 
     @Transactional (readOnly = true)
-    public List<CategoryResponseDto> getCategories()
+    public Page <CategoryResponseDto > getCategories(Pageable pageable)
     {
-        return categoryRepository.findAll().stream ()
+        return categoryRepository.findAll ( pageable )
                 .map ( categoryMapper::toResponseDto )
-                .collect ( Collectors.toList () );
+                ;
     }
 
     @Transactional (readOnly = true)
@@ -58,7 +70,7 @@ public class CategoryService {
     }
 
     @Transactional
-    public CategoryResponseDto createCategory(CategoryCreateDto categoryCreateDto) {
+    public CategoryResponseDto createCategory(@Valid CategoryCreateDto categoryCreateDto) {
 
         Objects.requireNonNull ( categoryCreateDto , "Category is required" );
         Category category = categoryMapper.toCategory ( categoryCreateDto );
@@ -86,7 +98,7 @@ public class CategoryService {
     }
 
     @Transactional
-    public CategoryResponseDto updateCategory(Long id , CategoryCreateDto categoryCreateDto) {
+    public CategoryResponseDto updateCategory(Long id , @Valid CategoryCreateDto categoryCreateDto) {
 
         Objects.requireNonNull ( categoryCreateDto , "Category is required" );
         Objects.requireNonNull ( id , "id is required" );
@@ -96,9 +108,9 @@ public class CategoryService {
                         ErrorCode.CATEGORY_NOT_FOUND.toString ( ) , "Category with id " + id + " not found"
                 ) );
 
-        if (categoryCreateDto.name ( ) != null && !categoryCreateDto.name().trim().isEmpty() ) {
+        if (categoryCreateDto.name ( ) != null && !categoryCreateDto.name ( ).trim ( ).isEmpty ( )) {
 
-            String newName = categoryCreateDto.name ( ).trim ();
+            String newName = categoryCreateDto.name ( ).trim ( );
 
             if (categoryRepository.existsByNameIgnoreCaseAndIdNot ( newName , categoryToUpdate.getId ( ) ))
                 throw new DuplicateResourceException (
@@ -106,11 +118,11 @@ public class CategoryService {
                         "Category with name " + newName + " already exists"
                 );
 
-            String newSlug = generateSlug (  newName );
+            String newSlug = generateSlug ( newName );
 
-            if (categoryRepository.existsBySlugAndIdNot(newSlug, id)) {
-                throw new DuplicateResourceException(
-                        ErrorCode.SLUG_ALREADY_EXISTS.toString(),
+            if (categoryRepository.existsBySlugAndIdNot ( newSlug , id )) {
+                throw new DuplicateResourceException (
+                        ErrorCode.SLUG_ALREADY_EXISTS.toString ( ) ,
                         "Category with slug '" + newSlug + "' already exists"
                 );
             }
@@ -120,28 +132,51 @@ public class CategoryService {
         }
 
         if (categoryCreateDto.description ( ) != null) {
-            categoryToUpdate.setDescription ( categoryCreateDto.description ( ).trim () );
-        }
-        
-        if (categoryCreateDto.isActive()!= null) {
-            categoryToUpdate.setActive ( categoryCreateDto.isActive ( ) );
+            categoryToUpdate.setDescription ( categoryCreateDto.description ( ).trim ( ) );
         }
 
-        Category updatedCategory = categoryRepository.save(categoryToUpdate);
+        if (categoryCreateDto.isActive ( ) != null) {
+
+            if (!categoryCreateDto.isActive ( )) {
+                throw new InvalidOperationException (
+                        ErrorCode.CANNOT_DEACTIVATE_CATEGORY_THROUGH_UPDATE_METHOD_PLEASE_USE_ARCHIVE_METHOD_INSTEAD
+                                .toString ( ) ,
+                        " Please use archiveCategory method instead !"
+                );
+
+            }
+
+            categoryToUpdate.setActive ( true );
+
+        }
+
+        Category updatedCategory = categoryRepository.save ( categoryToUpdate );
         return categoryMapper.toResponseDto ( updatedCategory );
     }
 
     @Transactional
-        public CategoryResponseDto deleteCategory(Long id)
+        public void archiveCategory(Long id)
     {
-        Objects.requireNonNull (id, "id is required");
+        Objects.requireNonNull (id, "Category id is required");
 
-        Category categoryToDelete = categoryRepository.findById ( id ).orElseThrow ( () -> new NotFoundException (
-                ErrorCode.CATEGORY_NOT_FOUND.toString () , "Category with id " + id + " not found"
-        ));
+        Category category = categoryRepository.findById(id).orElseThrow(
+                () -> new NotFoundException(
+                        ErrorCode.CATEGORY_NOT_FOUND.toString(), "Category with id " + id + " not found")
+        );
 
-        categoryRepository.deleteById ( id );
-        return categoryMapper.toResponseDto ( categoryToDelete );
+        if (courseRepository.findByCategoryId ( id )
+                .stream ( )
+                .anyMatch ( course -> course.getStatus ( ) == Status.PUBLISHED )) {
+
+
+            throw new com.example.demo.exception.types.IllegalStateException (
+                    ErrorCode.CATEGORY_HAS_ACTIVE_COURSES.toString (),
+                    "Category with id " + id + " has active courses. Cannot archive."
+            );
+        }
+
+        category.setActive(false);
+        categoryRepository.save(category);
     }
 
 

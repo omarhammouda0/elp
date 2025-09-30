@@ -17,8 +17,8 @@ import java.util.Optional;
 
 public interface CourseRepository extends JpaRepository<Course, Long> {
 
-    boolean existsByTitleIgnoreCase(String title);
 
+    boolean existsByTitleIgnoreCase(String title);
 
     @EntityGraph(attributePaths = {"instructor","category"})
     Optional<Course> findByTitleIgnoreCase(String title);
@@ -63,4 +63,6 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     boolean existsByTitleIgnoreCaseAndIdNot(String title, Long id);
 
     List<Course> findByCategoryId(Long categoryId);
+
+
 }

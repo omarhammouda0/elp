@@ -1,4 +1,5 @@
 package com.example.demo.service;
+import com.example.demo.entity.module.ModuleResponseDto;
 import com.example.demo.entity.user.User;
 import com.example.demo.entity.user.UserCreationDto;
 import com.example.demo.entity.user.UserResponseDto;
@@ -8,6 +9,9 @@ import com.example.demo.exception.types.DuplicateResourceException;
 import com.example.demo.exception.types.NotFoundException;
 import com.example.demo.mapper.UserMapper;
 import com.example.demo.repo.UserRepository;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,7 +38,7 @@ public class UserService {
 
 
     @Transactional
-    public UserResponseDto createUser(UserCreationDto userCreationDto) {
+    public UserResponseDto createUser(@Valid UserCreationDto userCreationDto) {
 
         Objects.requireNonNull(userCreationDto , "User can't be null");
 
@@ -57,13 +61,12 @@ public class UserService {
 
     }
 
-    @Transactional (readOnly = true)
-    public List<UserResponseDto> getAllUsers() {
-        return userRepository.findAll ()
-                .stream()
-                .map ( userMapper::toResponse )
-                .toList ( );
+    @Transactional(readOnly = true)
+    public Page<UserResponseDto> getAllUsers(Pageable pageable) {
+        return userRepository.findAll(pageable)
+                .map(userMapper::toResponse);
     }
+
 
     @Transactional (readOnly = true)
     public UserResponseDto getUserById (long id) {
@@ -74,7 +77,7 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponseDto updateUser(Long id , UserUpdateDto dto) {
+    public UserResponseDto updateUser(Long id , @Valid UserUpdateDto dto) {
 
         Objects.requireNonNull ( dto , "User can't be null" );
         User r = userRepository.findById ( id ).orElseThrow ( () ->

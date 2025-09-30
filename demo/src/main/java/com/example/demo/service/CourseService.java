@@ -5,10 +5,12 @@ import com.example.demo.entity.user.Role;
 import com.example.demo.entity.user.User;
 import com.example.demo.exception.model.ErrorCode;
 import com.example.demo.exception.types.DuplicateResourceException;
+import com.example.demo.exception.types.InvalidRoleException;
 import com.example.demo.exception.types.NotFoundException;
 import com.example.demo.mapper.CourseMapper;
 import com.example.demo.repo.CategoryRepository;
 import com.example.demo.repo.CourseRepository;
+import com.example.demo.repo.ModuleRepository;
 import com.example.demo.repo.UserRepository;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,7 @@ import java.math.RoundingMode;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,13 +36,15 @@ public class CourseService {
     private final CourseMapper courseMapper;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final ModuleRepository moduleRepository;
 
     public CourseService(CourseRepository courseRepository , CourseMapper courseMapper ,
-                         CategoryRepository categoryRepository , UserRepository userRepository) {
+                         CategoryRepository categoryRepository , UserRepository userRepository , ModuleRepository moduleRepository) {
         this.courseRepository = courseRepository;
         this.courseMapper = courseMapper;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
+        this.moduleRepository = moduleRepository;
     }
 
     // ________________________Create__________________________
@@ -49,7 +54,8 @@ public class CourseService {
         Objects.requireNonNull ( dto , "Course is required" );
 
         String trimmedTitle = dto.title ( ).replaceAll ( "\\s+" , " " ).trim ( );
-        if (trimmedTitle.isEmpty ( )) throw new IllegalArgumentException ( "Title is required" );
+        if (trimmedTitle.isEmpty ( ))
+            throw new IllegalArgumentException ( "Title is required" );
 
         Long instructorId = dto.instructorId ( );
         Long categoryId = dto.categoryId ( );
@@ -58,7 +64,9 @@ public class CourseService {
                 () -> new NotFoundException ( ErrorCode.INSTRUCTOR_NOT_FOUND.toString ( ) , "Instructor not found" )
         );
         if (instructor.getRole ( ) != Role.INSTRUCTOR) {
-            throw new IllegalArgumentException ( "The user role must be an instructor" );
+            throw new InvalidRoleException ( ErrorCode.USER_IS_NOT_AN_INSTRUCTOR.toString (),
+                    "The user with id " + dto.instructorId ( ) +
+                            " is not an instructor , please enter a valid User !" );
         }
 
         Category category = categoryRepository.findById ( categoryId ).orElseThrow (
@@ -249,7 +257,9 @@ public class CourseService {
                             ErrorCode.INSTRUCTOR_NOT_FOUND.toString ( ) , "Instructor with id " + dto.instructorId ( ) + " not found" )
             );
             if (instructor.getRole ( ) != Role.INSTRUCTOR) {
-                throw new IllegalArgumentException ( "User is not an instructor" );
+                throw new InvalidRoleException ( ErrorCode.USER_IS_NOT_AN_INSTRUCTOR.toString (),
+                        "The user with id " + dto.instructorId ( ) +
+                                " is not an instructor , please enter a valid User !" );
             }
             course.setInstructor ( instructor );
         }
@@ -315,11 +325,7 @@ public class CourseService {
 
             }
 
-
             if (dto.status ( ) == Status.DRAFT) {
-                if (course.getStatus ( ) == Status.ARCHIVED) {
-                    throw new IllegalArgumentException ( "Cannot draft an archived course" );
-                }
 
                 if (course.getStatus ( ) == Status.PUBLISHED) {
                     throw new IllegalArgumentException ( "Cannot draft an published course" );
@@ -342,7 +348,7 @@ public class CourseService {
     // ________________________Delete (Archive)__________________________
 
     @Transactional
-    public CourseResponseDto archiveCourse(Long courseId) {
+    public void archiveCourse(Long courseId) {
         Objects.requireNonNull(courseId, "course Id is required");
 
         Course course = courseRepository.findById(courseId).orElseThrow(
@@ -350,17 +356,22 @@ public class CourseService {
                         ErrorCode.COURSE_NOT_FOUND.toString(), "Course with id " + courseId + " not found")
         );
 
+
         if (course.getStatus() == Status.ARCHIVED) {
-            throw new IllegalStateException("Course is already archived");
+            throw new IllegalStateException ( "Course is already archived" );
         }
 
-        if (course.getStatus() == Status.DRAFT) {
-            throw new IllegalStateException("Cannot archive a draft course");
-        }
+            if (moduleRepository.findByCourseIdAndIsActive ( courseId ).isPresent ( )) {
+                throw new com.example.demo.exception.types.IllegalArgumentException (
+                        ErrorCode.COURSE_HAS_ACTIVE_MODULES.toString ( ) ,
+                        "Cannot archive course with active modules. Please deactivate or remove active modules first."
+                );
+            }
+
 
         course.setStatus(Status.ARCHIVED);
-        Course archived = courseRepository.save(course);
-        return courseMapper.toCourseDto(archived);
+        courseRepository.save(course);
+
     }
 }
 
