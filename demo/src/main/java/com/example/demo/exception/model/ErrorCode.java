@@ -36,6 +36,7 @@ public enum ErrorCode {
     INVALID_INPUT,
     INACTIVE_USER,
     INACTIVE_COURSE,
+    ENROLLMENT_ALREADY_INACTIVE
     ;
 
 
