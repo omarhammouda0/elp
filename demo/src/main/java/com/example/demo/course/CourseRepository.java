@@ -61,5 +61,23 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     List<Course> findByCategoryId(Long categoryId);
 
+    @Query ("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END " +
+            "FROM Course c, Enrollment e " +
+            "WHERE c.id = e.course.id " +
+            "AND c.instructor.email = :instructor_email " +
+            "AND e.user.email = :student_email"
+    )
+    boolean existsByInstructorAndStudent (@Param ( "instructor_email" ) String instructorEmail ,
+                                          @Param ( "student_email" ) String userEmail);
+
+
+    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END " +
+                    "FROM Course c " +
+                    "WHERE c.instructor.id = :instructorId " +
+                    "AND c.status = 'PUBLISHED'"
+    )
+    boolean activeCoursesForTheInstructor(Long instructorId);
+
+
 
 }

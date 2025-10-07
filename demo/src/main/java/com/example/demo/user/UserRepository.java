@@ -5,8 +5,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
@@ -36,4 +34,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
                           Pageable pageable);
 
 
+    @Query ("SELECT u FROM User u WHERE u.isActive = false ORDER BY u.id ASC")
+    Page <User> findByActiveFalseOrderById (Pageable pageable);
+
+    @Query ("SELECT u FROM User u WHERE u.isActive = true ORDER BY u.id ASC")
+    Page <User> findByActiveOrderById (Pageable pageable);
 }

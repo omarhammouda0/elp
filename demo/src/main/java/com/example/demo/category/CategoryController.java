@@ -43,7 +43,6 @@ public class CategoryController  {
     }
 
     @PostMapping
-    @PreAuthorize ("hasRole('ADMIN')")
     public ResponseEntity<CategoryResponseDto> saveCategory (@Valid @RequestBody CategoryCreateDto categoryCreateDto) {
         return ResponseEntity.status ( HttpStatus.CREATED ).body ( categoryService.createCategory (categoryCreateDto) );
     }

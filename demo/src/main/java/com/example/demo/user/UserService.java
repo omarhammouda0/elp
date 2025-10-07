@@ -1,10 +1,13 @@
 package com.example.demo.user;
+import com.example.demo.course.CourseRepository;
 import com.example.demo.exception.model.ErrorCode;
 import com.example.demo.exception.types.DuplicateResourceException;
 import com.example.demo.exception.types.NotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,13 +20,15 @@ import java.util.Objects;
 public class UserService {
 
 
+    private final CourseRepository courseRepository;
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository , UserMapper userMapper ,
+    public UserService(CourseRepository courseRepository , UserRepository userRepository , UserMapper userMapper ,
                        PasswordEncoder passwordEncoder) {
 
+        this.courseRepository = courseRepository;
         this.userRepository = userRepository;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
@@ -60,12 +65,32 @@ public class UserService {
                 .map(userMapper::toResponse);
     }
 
+    @Transactional(readOnly = true)
+    public Page<UserResponseDto> getActiveUsers(Pageable pageable) {
+        return userRepository.findByActiveOrderById(pageable)
+                .map(userMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<UserResponseDto> getInactiveUsers(Pageable pageable) {
+
+        return userRepository.findByActiveFalseOrderById(pageable)
+                .map(userMapper::toResponse);
+
+    }
+
     @Transactional (readOnly = true)
-    public UserResponseDto getUserById (long id) {
+    public UserResponseDto getUserById (long id , Authentication authentication) {
+
 
         User u = userRepository.findById ( id )
-                .orElseThrow (  () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () , "User with id " + id + " not found") );
-        return  userMapper.toResponse ( u );
+                .orElseThrow (  () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () ,
+                        "User with id " + id + " not found") );
+
+         accessValidation( u ,  authentication );
+
+
+        return userMapper.toResponse ( u );
     }
 
     @Transactional(readOnly = true)
@@ -84,12 +109,11 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserResponseDto getUserByEmail (String email) {
-        if (email == null || email.isBlank ( )) {
+    public UserResponseDto getUserByEmail (String requestedEmail , Authentication authentication) {
+        if (requestedEmail == null || requestedEmail.isBlank ( )) {
             throw new IllegalArgumentException ( "Email can't be blank" );
         }
-
-        String normalizeEmail = email.trim ( ).toLowerCase ( );
+        String normalizeEmail = requestedEmail.trim ( ).toLowerCase ( );
 
         if (!isValidEmailFormat ( normalizeEmail )) {
             throw new IllegalArgumentException ( "Email format is invalid" );
@@ -97,17 +121,23 @@ public class UserService {
 
         User u = userRepository.findByEmailIgnoreCase ( normalizeEmail )
                 .orElseThrow (  () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () ,
-                        "User with email " + email + " not found") );
+                        "User with email " + requestedEmail + " not found") );
+
+        accessValidation ( u , authentication  );
 
         return  userMapper.toResponse ( u );
     }
 
     @Transactional
-    public UserResponseDto updateUser(Long id , @Valid UserUpdateDto dto) {
+    public UserResponseDto updateUser(Long id , @Valid UserUpdateDto dto , Authentication authentication) {
 
         Objects.requireNonNull ( dto , "User can't be null" );
         User r = userRepository.findById ( id ).orElseThrow ( () ->
                 new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () , "User with id " + id + " not found") );
+
+        accessValidation ( r ,  authentication );
+
+        User currentUser = getCurrentUser ( authentication );
 
         if (dto.username ( ) != null && !dto.username ( ).isBlank ( )) {
             String userName = dto.username ( ).trim ( );
@@ -141,10 +171,20 @@ public class UserService {
         }
 
         if (dto.role() != null) {
+
+            if (!currentUser.getRole ( ).equals ( Role.ADMIN )) {
+                throw new AccessDeniedException ( "Only admins can change roles" );
+            }
+
             r.setRole(dto.role());
         }
 
         if (dto.isActive ()!= null) {
+
+            if (!currentUser.getRole ( ).equals ( Role.ADMIN )) {
+                throw new AccessDeniedException ( "Only admins can change active status" );
+            }
+
             r.setActive ( dto.isActive ( ) );
         };
 
@@ -153,14 +193,32 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponseDto deleteUser( Long id ) {
+    public void deleteUser( Long id , Authentication authentication ) {
         Objects.requireNonNull ( id , "User can't be null");
 
-        User userToDelete = userRepository.findById ( id ).orElseThrow ( () ->
-                new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () , "User with id " + id + " not found") );
+        User currentUser = getCurrentUser ( authentication );
 
-        userRepository.deleteById ( id );
-        return userMapper.toResponse ( userToDelete );
+        User userToDelete = userRepository.findById ( id ).orElseThrow ( () ->
+                new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString ( ) , "User with id " + id + " not found" ) );
+
+        if ( !currentUser.getRole ( ).equals ( Role.ADMIN ) ) {
+            throw new AccessDeniedException ( "Only admins can delete users" );
+        }
+
+        if ( currentUser.getId ().equals ( id ) ) {
+            throw new IllegalStateException ( "Admin can not delete himself" );
+        }
+
+        if ( userToDelete.getRole ( ).equals ( Role.INSTRUCTOR ) &&
+             courseRepository.activeCoursesForTheInstructor ( userToDelete.getId () ))  {
+            throw new IllegalStateException ( "Instructor has active courses and cannot be deleted" );
+
+        }
+
+
+        userToDelete.setActive (  false );
+        userRepository.save ( userToDelete );
+
     }
 
 
@@ -185,6 +243,43 @@ public class UserService {
 
     }
 
+    private void accessValidation(User user, Authentication authentication) {
+
+        String currentUserEmail = authentication.getName ();
+
+        User currentUser = userRepository.findByEmailIgnoreCase ( currentUserEmail )
+                .orElseThrow ( () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () ,
+                        "User with email " + currentUserEmail + " not found") );
+
+        if ( currentUser.getRole ( ).equals ( Role.STUDENT ) && !currentUser.getId ( ).equals ( user.getId ( ) ) ) {
+            throw new AccessDeniedException (
+                    "Students can only access their own information"
+            );
+        }
+
+
+        boolean instructorAccessStudentInfo = courseRepository.existsByInstructorAndStudent
+                ( currentUserEmail , user.getEmail () );
+
+
+        if (currentUser.getRole ().equals (  Role.INSTRUCTOR ) && !instructorAccessStudentInfo &&
+        !currentUser.getId ( ).equals ( user.getId ( ) ) )
+        {
+            throw new AccessDeniedException (
+                    "Instructor can only access their own students information"
+            );
+        }
+
+
+    }
+
+    private User getCurrentUser(Authentication authentication) {
+        String currentUserEmail = authentication.getName ( );
+
+        return userRepository.findByEmailIgnoreCase ( currentUserEmail )
+                .orElseThrow ( () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () ,
+                        "User with email " + currentUserEmail + " not found") );
+    }
 
 
 

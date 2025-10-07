@@ -10,6 +10,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import javax.management.OperationsException;
-import java.nio.file.AccessDeniedException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -119,6 +119,16 @@ public class ApiExceptionHandler {
         pd.setDetail("You don't have permission to access this resource");
         pd.setProperty("path", req.getRequestURI());
         pd.setProperty("timestamp", Instant.now());
+        return pd;
+    }
+
+    @ExceptionHandler(BadCredentialsException.class )
+    @ResponseStatus
+    public ProblemDetail handleBadCredentials(BadCredentialsException ex, HttpServletRequest req) {
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.UNAUTHORIZED);
+        pd.setTitle("Unauthorized");
+        pd.setDetail(ex.getMessage());
+        pd.setProperty("path", req.getRequestURI());
         return pd;
     }
 
