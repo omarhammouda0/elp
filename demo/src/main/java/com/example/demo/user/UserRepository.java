@@ -5,6 +5,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
@@ -13,12 +15,14 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByEmail(String email);
-    Optional<User> findByEmail(String email);
 
+    Optional <User> findByEmailIgnoreCase(String email);
+
+    Optional <User> findByEmail(String email);
 
     boolean existsByEmailAndIdNot(String email , Long id);
 
-    boolean existsByUserName(String userName);
+    boolean existsByUserNameIgnoreCase(String userName);
 
     boolean existsByUserNameAndIdNot(String userName , Long id);
 

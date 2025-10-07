@@ -44,7 +44,8 @@ public class EnrollmentService {
 
         Objects.requireNonNull ( dto , "Enrollment cannot be null" );
 
-        log.info ( "Starting enrollment creation for userId: {}, courseId: {}" , dto.userId ( ) , dto.courseId ( ) );
+        log.info ( "Starting enrollment creation for studentId: {}, courseId: {}" , dto.userId ( ) , dto.courseId ( ) );
+
 
         if (enrollmentRepository.existsByUserIdAndCourseId ( dto.userId ( ) , dto.courseId ( ) )) {
             log.warn ( "Duplicate enrollment detected for userId: {}, courseId: {}" , dto.userId ( ) , dto.courseId ( ) );

@@ -42,7 +42,7 @@ public class UserService {
             throw new DuplicateResourceException ( ErrorCode.EMAIL_ALREADY_EXISTS.toString () , "Email already exists");
         }
 
-        if (userRepository.existsByUserName(normalizeUserName) ) {
+        if (userRepository.existsByUserNameIgnoreCase(normalizeUserName) ) {
             throw new DuplicateResourceException ( ErrorCode.USER_ALREADY_EXISTS.toString () , "Username already exists" );
         }
 
@@ -95,7 +95,7 @@ public class UserService {
             throw new IllegalArgumentException ( "Email format is invalid" );
         }
 
-        User u = userRepository.findByEmail ( normalizeEmail )
+        User u = userRepository.findByEmailIgnoreCase ( normalizeEmail )
                 .orElseThrow (  () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () ,
                         "User with email " + email + " not found") );
 

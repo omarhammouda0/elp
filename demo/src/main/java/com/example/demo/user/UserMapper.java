@@ -13,7 +13,8 @@ public class UserMapper {
         Objects.requireNonNull(user , "user can not be null");
         return new UserResponseDto (
 
-                user.getUserName ( ) ,
+                user.getId ( ) ,
+                user.getUsername ( ) ,
                 user.getEmail ( ) ,
                 user.getFirstName ( ) ,
                 user.getLastName ( ) ,

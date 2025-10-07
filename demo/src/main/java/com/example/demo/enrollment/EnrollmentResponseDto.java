@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 public record EnrollmentResponseDto (
 
         Long id,
-        String userName,
+        String studentName,
         String courseTitle,
         LocalDateTime dateOfEnrollment ,
         Boolean isActive,
