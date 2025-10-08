@@ -6,11 +6,13 @@ import jakarta.validation.constraints.*;
 
 public record UserCreationDto(
         @NotBlank (message = "Username cannot be blank")
-        @Size(min = 10, max = 255 , message = "Username must be between 10 and 255 characters")
+        @Size(min = 2, max = 50 , message = "Username must be between 2 and 50 characters")
         String username,
 
         @NotBlank (message = "Email cannot be blank")
         @Email
+        @Size ( min = 10 ,max = 100 , message = "Email must be between 10 and 100 characters")
+
         String email,
 
         @NotBlank
@@ -25,9 +27,11 @@ public record UserCreationDto(
         String password,
 
         @NotBlank (message = "First name cannot be blank")
+        @Size (min = 2, max = 50 , message = "First name must be between 2 and 50 characters")
         String firstName,
 
         @NotBlank (message = "Last name cannot be blank")
+        @Size (min = 2, max = 50 , message = "Last name must be between 2 and 50 characters")
         String lastName,
 
         @NotNull(message = "Role cannot be blank")

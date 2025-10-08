@@ -30,13 +30,13 @@ public class User implements UserDetails {
 
     @Column(nullable = false, length = 50)
     @NotBlank(message = "User name cannot be empty")
-    @Size(min = 2, max = 50)  // Fixed: 10 chars min might be too long for username
+    @Size(min = 2, max = 50 , message = "Username must be between 2 and 50 characters")
     private String userName;
 
     @Column(nullable = false, unique = true, length = 255)
     @Email
     @NotBlank(message = "Email cannot be empty")
-    @Size(min = 5, max = 255)  // Fixed: "a@b.c" is valid email (5 chars)
+    @Size ( min = 10 ,max = 100 , message = "Email must be between 10 and 100 characters")
     private String email;
 
     @Column(nullable = false, length = 255)

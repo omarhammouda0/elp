@@ -24,7 +24,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     boolean existsByUserNameAndIdNot(String userName , Long id);
 
-    Optional<User> findByFirstNameAndLastNameIgnoreCase(String firstName , String lastName);
 
     Optional <User> findByFirstNameIgnoreCaseAndLastNameIgnoreCase(String firstName , String lastName);
 
