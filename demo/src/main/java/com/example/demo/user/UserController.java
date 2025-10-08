@@ -58,8 +58,6 @@ public class UserController {
     }
 
 
-
-
     @GetMapping("/role/{role}")
     @PreAuthorize ( "hasRole('ADMIN')" )
 
@@ -77,9 +75,7 @@ public class UserController {
     }
 
     @GetMapping("/email/{email}")
-    public ResponseEntity<UserResponseDto> getUserByEmail
-
-            (@PathVariable String email , Authentication authentication) {
+    public ResponseEntity<UserResponseDto> getUserByEmail(@PathVariable String email , Authentication authentication) {
         return ResponseEntity.ok ( userService.getUserByEmail ( email , authentication ) );
     }
 

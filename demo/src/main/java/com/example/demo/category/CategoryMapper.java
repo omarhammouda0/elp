@@ -30,7 +30,7 @@ public class CategoryMapper {
         return new Category(
 
                 categoryCreateDto.name ().trim (),
-                categoryCreateDto.description() != null ?
+                categoryCreateDto.description() != null  ?
                         categoryCreateDto.description().trim() : null
         );
     }

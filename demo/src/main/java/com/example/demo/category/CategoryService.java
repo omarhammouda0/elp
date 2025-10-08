@@ -1,5 +1,7 @@
 package com.example.demo.category;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
 
 import com.example.demo.course.Status;
 import com.example.demo.exception.types.InvalidOperationException;
@@ -46,6 +48,42 @@ public class CategoryService {
         return categoryRepository.findAll ( pageable )
                 .map ( categoryMapper::toResponseDto )
                 ;
+    }
+
+    @Transactional (readOnly = true)
+    public Page <CategoryResponseDto > getActiveCategories(Pageable pageable)
+    {
+        return categoryRepository.findByActiveOrderById ( pageable )
+                .map ( categoryMapper::toResponseDto )
+                ;
+    }
+
+    @Transactional (readOnly = true)
+    public Page<CategoryResponseDto> getInActiveCategories(Pageable pageable) {
+
+        return categoryRepository.findByIsActiveFalseOrderById(pageable)
+                .map(categoryMapper::toResponseDto);
+    }
+
+    @Transactional (readOnly = true)
+    public Page<CategoryResponseDto> findCategoriesWithNoCourses(Pageable pageable) {
+        return categoryRepository.findCategoriesWithNoCourses(pageable)
+                .map(categoryMapper::toResponseDto);
+    }
+
+    @Transactional (readOnly = true)
+    public int getCoursesCountForCategory(Long id) {
+
+        Objects.requireNonNull ( id , "Category id is required" );
+
+        if (!categoryRepository.existsById ( id ))
+            throw new NotFoundException (
+                    ErrorCode.CATEGORY_NOT_FOUND.toString ( ) ,
+                    "Category with id " + id + " not found"
+            );
+
+        return categoryRepository.findCountOfCoursesInCategory ( id );
+
     }
 
     @Transactional (readOnly = true)
@@ -111,11 +149,8 @@ public class CategoryService {
 
             String newSlug = generateSlug ( newName );
 
-            if (categoryRepository.existsBySlugAndIdNot ( newSlug , id )) {
-                throw new DuplicateResourceException (
-                        ErrorCode.SLUG_ALREADY_EXISTS.toString ( ) ,
-                        "Category with slug '" + newSlug + "' already exists"
-                );
+            if (categoryRepository.existsBySlugAndIdNot(newSlug, id)) {
+                newSlug = newSlug + "-" + UUID.randomUUID().toString().substring(0, 8);
             }
 
             categoryToUpdate.setName ( newName );
@@ -157,18 +192,20 @@ public class CategoryService {
 
         if (courseRepository.findByCategoryId ( id )
                 .stream ( )
-                .anyMatch ( course -> course.getStatus ( ) == Status.PUBLISHED )) {
+                .anyMatch ( course -> course.getStatus ( ) == Status.PUBLISHED ||
+                        course.getStatus ( ) == Status.DRAFT ))  {
 
 
             throw new com.example.demo.exception.types.IllegalStateException (
                     ErrorCode.CATEGORY_HAS_ACTIVE_COURSES.toString (),
-                    "Category with id " + id + " has active courses. Cannot archive."
+                    "Category with id " + id + " has active or draft courses. Cannot archive."
             );
         }
 
         category.setActive(false);
         categoryRepository.save(category);
     }
+
 
 
 }
