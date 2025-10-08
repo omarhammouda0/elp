@@ -2,12 +2,11 @@ package com.example.demo.auth;
 
 import com.example.demo.exception.model.ErrorCode;
 import com.example.demo.exception.types.DuplicateResourceException;
+import com.example.demo.exception.types.InActiveException;
 import com.example.demo.exception.types.NotFoundException;
 import com.example.demo.security.JwtService;
 import com.example.demo.user.User;
-import com.example.demo.user.UserMapper;
 import com.example.demo.user.UserRepository;
-import com.example.demo.user.UserResponseDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,6 +32,11 @@ public class AuthenticationService {
                     "User with email " + dto.email () + " already exists");
         }
 
+        if (userRepository.existsByUserNameIgnoreCase ( dto.userName().trim())) {
+            throw new DuplicateResourceException ( ErrorCode.USERNAME_ALREADY_EXISTS.toString () ,
+                    "User with username " + dto.userName () + " already exists");
+        }
+
         User toSave = new User (  );
 
         toSave.setPassword ( passwordEncoder.encode(dto.password ()));
@@ -47,7 +51,7 @@ public class AuthenticationService {
 
         UserResponseDTO response = new UserResponseDTO (
                 savedUser.getId () ,
-                savedUser.getUsername () ,
+                savedUser.getUserName () ,
                 savedUser.getEmail () ,
                 savedUser.getFirstName () ,
                 savedUser.getLastName () ,
@@ -83,6 +87,11 @@ public class AuthenticationService {
                 .orElseThrow ( () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () ,
                         "User with email " + dto.email () + " not found") );
 
+        if(! user.isActive ()){
+            throw new InActiveException ( ErrorCode.INACTIVE_USER.toString () ,
+                    "User with email " + dto.email () + " is inactive. Please contact support." );
+        }
+
         user.updateLastLogin ();
         userRepository.save ( user );
 
@@ -91,7 +100,7 @@ public class AuthenticationService {
 
         UserResponseDTO response = new UserResponseDTO (
                 user.getId () ,
-                user.getUsername () ,
+                user.getUserName () ,
                 user.getEmail () ,
                 user.getFirstName () ,
                 user.getLastName () ,

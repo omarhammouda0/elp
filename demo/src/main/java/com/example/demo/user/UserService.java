@@ -166,7 +166,7 @@ public class UserService {
         }
 
         if (dto.password ( ) != null && !dto.password ( ).isBlank ( )) {
-            String password = dto.password ( ).trim ( );
+            String password = dto.password ( );
             r.setPassword ( passwordEncoder.encode ( password ) );
         }
 
@@ -215,6 +215,10 @@ public class UserService {
 
         }
 
+        String timestamp = String.valueOf(System.currentTimeMillis());
+
+        userToDelete.setUserName (  userToDelete.getUserName () + "_deleted_" + timestamp  );
+        userToDelete.setEmail (  userToDelete.getEmail () + "_deleted_" + timestamp  );
 
         userToDelete.setActive (  false );
         userRepository.save ( userToDelete );
@@ -280,7 +284,6 @@ public class UserService {
                 .orElseThrow ( () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () ,
                         "User with email " + currentUserEmail + " not found") );
     }
-
 
 
 }
