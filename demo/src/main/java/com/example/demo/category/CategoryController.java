@@ -30,6 +30,8 @@ public class CategoryController  {
     }
 
     @GetMapping
+    @PreAuthorize ( "hasRole('ADMIN')" )
+
     public ResponseEntity<Page <CategoryResponseDto> > getAllCategories(
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC)
             Pageable pageable) {
@@ -38,7 +40,6 @@ public class CategoryController  {
     }
 
     @GetMapping("/active")
-    @PreAuthorize ( "hasRole('ADMIN')" )
 
     public ResponseEntity <Page <CategoryResponseDto> > getAllActiveCategories(
             @PageableDefault(size = 20, sort = "id", direction = Sort.Direction.ASC)

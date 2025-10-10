@@ -190,12 +190,8 @@ public class CategoryService {
                         ErrorCode.CATEGORY_NOT_FOUND.toString(), "Category with id " + id + " not found")
         );
 
-        if (courseRepository.findByCategoryId ( id )
-                .stream ( )
-                .anyMatch ( course -> course.getStatus ( ) == Status.PUBLISHED ||
-                        course.getStatus ( ) == Status.DRAFT ))  {
-
-
+        if (courseRepository.hasActiveOrDraftCourses ( category.getId () ))
+        {
             throw new com.example.demo.exception.types.IllegalStateException (
                     ErrorCode.CATEGORY_HAS_ACTIVE_COURSES.toString (),
                     "Category with id " + id + " has active or draft courses. Cannot archive."

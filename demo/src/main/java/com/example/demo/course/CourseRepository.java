@@ -74,10 +74,16 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END " +
                     "FROM Course c " +
                     "WHERE c.instructor.id = :instructorId " +
-                    "AND c.status = 'PUBLISHED'"
+                    "AND c.status in ('PUBLISHED' , 'DRAFT')"
     )
     boolean activeCoursesForTheInstructor(Long instructorId);
 
 
+  @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END " +
+            "FROM Course c " +
+            "WHERE c.category.id = :categoryId " +
+            "AND (c.status = 'PUBLISHED' OR c.status = 'DRAFT')")
+
+    boolean hasActiveOrDraftCourses(@Param("categoryId") Long categoryId);
 
 }

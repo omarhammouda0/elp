@@ -7,7 +7,8 @@ import jakarta.validation.constraints.Size;
 
 public record UserUpdateDto(
 
-        @Size(min = 10, max = 255) String username ,
+        @Size(min = 2, max = 50 , message = "Username must be between 2 and 50 characters")
+        String username ,
 
         @Email
         String email ,

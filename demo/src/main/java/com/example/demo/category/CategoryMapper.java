@@ -13,13 +13,12 @@ public class CategoryMapper {
 
         return new CategoryResponseDto(
 
-
+                category.getId () ,
                 category.getName () ,
                 category.getDescription () ,
                 category.getSlug () ,
                 category.isActive (),
                 category.getCreatedDate ()
-
         );
     }
 

@@ -38,4 +38,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query ("SELECT u FROM User u WHERE u.isActive = true ORDER BY u.id ASC")
     Page <User> findByActiveOrderById (Pageable pageable);
+
+
+
+    @Query ("SELECT case when count(u) = 1 then true else false end FROM User u WHERE u.role = 'ADMIN' " +
+            "AND u.isActive = true")
+
+    boolean isLastAdmin();
+
 }

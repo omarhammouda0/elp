@@ -135,6 +135,7 @@ public class UserService {
     public UserResponseDto updateUser(Long id , @Valid UserUpdateDto dto , Authentication authentication) {
 
         Objects.requireNonNull ( dto , "User can't be null" );
+
         User r = userRepository.findById ( id ).orElseThrow ( () ->
                 new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () , "User with id " + id + " not found") );
 
@@ -174,19 +175,35 @@ public class UserService {
                 throw new AccessDeniedException ( "Only admins can change roles" );
             }
 
-            r.setRole(dto.role());
+            if (r.getRole ( ).equals ( Role.ADMIN )
+                    && !dto.role ( ).equals ( Role.ADMIN )
+                    && userRepository.isLastAdmin ( )
+
+            ) {
+                throw new IllegalStateException ( "The last active admin's role cannot be changed" );
+            }
+
+            if (r.getRole ( ).equals ( Role.ADMIN ) &&
+                    !dto.role ( ).equals ( Role.ADMIN ) &&
+                    currentUser.getId ( ).equals ( r.getId ( ) )) {
+
+                throw new IllegalStateException ( "You cannot demote yourself. " +
+                        "Have another admin change your role." );
+            }
+
+            r.setRole ( dto.role ( ) );
         }
 
-        if (dto.isActive ()!= null) {
+        if (dto.isActive ( ) != null) {
 
-            if (!currentUser.getRole ( ).equals ( Role.ADMIN )) {
-                throw new AccessDeniedException ( "Only admins can change active status" );
+            if (dto.isActive ().equals ( false )) {
+                validateStatusChange ( r , authentication );
             }
 
             r.setActive ( dto.isActive ( ) );
-        };
+        }
 
-        userRepository.save( r );
+        userRepository.save ( r );
         return userMapper.toResponse ( r );
     }
 
@@ -243,6 +260,12 @@ public class UserService {
 
     }
 
+    private boolean isValidEmailFormat(String email) {
+
+        String emailRegex = "^[A-Za-z0-9+_.-]+@(.+)$";
+        return email.matches ( emailRegex );
+
+    }
 
     private Role isValidRole(String role) {
         for (Role r : Role.values ( )) {
@@ -255,13 +278,6 @@ public class UserService {
                 ErrorCode.INVALID_INPUT.toString ( ) ,
                 "Role must be one of the following: ADMIN, INSTRUCTOR, STUDENT"
         );
-
-    }
-
-    private boolean isValidEmailFormat(String email) {
-
-        String emailRegex = "^[A-Za-z0-9+_.-]+@(.+)$";
-        return email.matches ( emailRegex );
 
     }
 
@@ -292,6 +308,24 @@ public class UserService {
             );
         }
 
+
+    }
+
+    private void validateStatusChange(User user , Authentication authentication) {
+
+        User currentUser = getCurrentUser ( authentication );
+
+        if (!currentUser.getRole ( ).equals ( Role.ADMIN )) {
+            throw new AccessDeniedException ( "Only admins can change active status" );
+        }
+
+        if (currentUser.getId ( ).equals ( user.getId ( ) )) {
+            throw new IllegalStateException ( "Admin can not change his own active status" );
+        }
+
+        if ( user.getRole ().equals ( Role.ADMIN ) && userRepository.isLastAdmin ( )) {
+            throw new IllegalStateException ( "The last active admin cannot be deactivated" );
+        }
 
     }
 

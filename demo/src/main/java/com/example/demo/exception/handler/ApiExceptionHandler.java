@@ -4,6 +4,7 @@ import com.example.demo.exception.base.AppException;
 import com.example.demo.exception.types.InActiveException;
 import com.example.demo.exception.types.InvalidOperationException;
 import com.example.demo.exception.types.InvalidRoleException;
+import com.example.demo.exception.types.LastAdminException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -132,6 +133,18 @@ public class ApiExceptionHandler {
         return pd;
     }
 
+    @ExceptionHandler(LastAdminException.class)
+    @ResponseStatus
+    public ProblemDetail handleLastAdmin(LastAdminException ex, HttpServletRequest req) {
+        ProblemDetail pd = ProblemDetail.forStatus(ex.getStatus());
+        pd.setTitle(ex.getClass().getSimpleName());
+        pd.setDetail(ex.getMessage());
+        pd.setProperty("path", req.getRequestURI());
+        pd.setProperty("timestamp", Instant.now());
+        pd.setProperty ( "code", ex.getCode() );
+        return pd;
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus
     public ProblemDetail handleUnknown(Exception ex, HttpServletRequest req) {
@@ -151,6 +164,8 @@ public class ApiExceptionHandler {
         pd.setProperty("path", req.getRequestURI());
         return pd;
     }
+
+
 
 
 }
