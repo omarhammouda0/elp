@@ -4,9 +4,11 @@ import com.example.demo.exception.model.ErrorCode;
 import com.example.demo.exception.types.DuplicateResourceException;
 import com.example.demo.exception.types.NotFoundException;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Objects;
 
 
+@Slf4j
 @Service
 
 public class UserService {
@@ -165,11 +168,6 @@ public class UserService {
             r.setLastName ( lastName );
         }
 
-        if (dto.password ( ) != null && !dto.password ( ).isBlank ( )) {
-            String password = dto.password ( );
-            r.setPassword ( passwordEncoder.encode ( password ) );
-        }
-
         if (dto.role() != null) {
 
             if (!currentUser.getRole ( ).equals ( Role.ADMIN )) {
@@ -190,6 +188,26 @@ public class UserService {
 
         userRepository.save( r );
         return userMapper.toResponse ( r );
+    }
+
+    @Transactional
+    public void updatePassword(Long id , @Valid UserPasswordUpdateDto dto , Authentication authentication) {
+
+        Objects.requireNonNull ( dto , "User can't be null" );
+        User r = userRepository.findById ( id ).orElseThrow ( () ->
+                new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString ( ) , "User with id " + id + " not found" ) );
+
+        passwordUpdateValidation ( r , authentication );
+
+        if (!passwordEncoder.matches ( dto.currentPassword ( ) , r.getPassword ( ) )) {
+            log.warn ("Failed password change attempt for user ID: {}", id );
+            throw new BadCredentialsException ( "Current password is incorrect" );
+        }
+
+        r.setPassword ( passwordEncoder.encode ( dto.newPassword ( ) ) );
+        userRepository.save ( r );
+
+        log.info ( "Password updated successfully for the user {}" , r.getId ( ) );
     }
 
     @Transactional
@@ -273,6 +291,24 @@ public class UserService {
                     "Instructor can only access their own students information"
             );
         }
+
+
+    }
+
+    private void passwordUpdateValidation (User user, Authentication authentication) {
+
+        String currentUserEmail = authentication.getName ();
+
+        User currentUser = userRepository.findByEmailIgnoreCase ( currentUserEmail )
+                .orElseThrow ( () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString () ,
+                        "User with email " + currentUserEmail + " not found") );
+
+        if ( !currentUser.getId ( ).equals ( user.getId ( ) ) ) {
+            throw new AccessDeniedException (
+                    "Users can only change their own password"
+            );
+        }
+
 
 
     }

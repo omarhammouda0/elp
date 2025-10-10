@@ -116,7 +116,7 @@ public class ApiExceptionHandler {
                                             HttpServletRequest req) {
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
         pd.setTitle("Access Denied");
-        pd.setDetail("You don't have permission to access this resource");
+        pd.setDetail (ex.getMessage());
         pd.setProperty("path", req.getRequestURI());
         pd.setProperty("timestamp", Instant.now());
         return pd;

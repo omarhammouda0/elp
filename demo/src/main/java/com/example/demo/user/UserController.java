@@ -82,8 +82,20 @@ public class UserController {
     @PostMapping
     @PreAuthorize ( "hasRole('ADMIN')" )
 
-    public ResponseEntity <UserResponseDto> saveUser(@Valid @RequestBody UserCreationDto userCreationDto) {
-        return ResponseEntity.status (  HttpStatus.CREATED ).body ( userService.createUser ( userCreationDto ) );}
+    public ResponseEntity<UserResponseDto> saveUser
+            (@Valid @RequestBody UserCreationDto userCreationDto) {
+        return ResponseEntity.status ( HttpStatus.CREATED ).body ( userService.createUser ( userCreationDto ) );
+    }
+
+
+    @PutMapping("/password_update/{id}")
+    public ResponseEntity<Void> updateUserPassword(@PathVariable Long id,
+                                                   @Valid @RequestBody UserPasswordUpdateDto dto,
+                                                   Authentication authentication) {
+        userService.updatePassword(id, dto, authentication);
+        return ResponseEntity.noContent().build();
+    }
+
 
     @PutMapping("/{id}")
     public ResponseEntity<UserResponseDto> updateUser(@PathVariable Long id ,

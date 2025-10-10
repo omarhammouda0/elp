@@ -29,27 +29,18 @@ public class User implements UserDetails {
     private Long id;
 
     @Column(nullable = false, length = 50)
-    @NotBlank(message = "User name cannot be empty")
-    @Size(min = 2, max = 50 , message = "Username must be between 2 and 50 characters")
     private String userName;
 
     @Column(nullable = false, unique = true, length = 255)
-    @Email
-    @NotBlank(message = "Email cannot be empty")
-    @Size ( min = 10 ,max = 100 , message = "Email must be between 10 and 100 characters")
     private String email;
 
     @Column(nullable = false, length = 255)
     private String password;
 
     @Column(nullable = false, length = 60)
-    @NotBlank(message = "First name cannot be empty")
-    @Size(min = 2, max = 60)
     private String firstName;
 
     @Column(nullable = false, length = 60)
-    @NotBlank(message = "Last name cannot be empty")
-    @Size(min = 2, max = 60)
     private String lastName;
 
     @Enumerated(EnumType.STRING)
