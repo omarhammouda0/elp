@@ -4,7 +4,7 @@ import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
 
-public record CourseUpdateDto (
+public record CourseUpdateDto   (
 
 
     @Size(min = 5 , max = 255 , message = "The title must be between 5 and 255 characters")
@@ -30,6 +30,6 @@ public record CourseUpdateDto (
 
     Long categoryId
 
-) {
+) implements CourseDto {
 
 }

@@ -2,7 +2,7 @@ package com.example.demo.course;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
 
-public record CourseCreateDto(
+public record CourseCreateDto   (
 
         @NotBlank (message = "Title can not be empty")
         @Size (min = 5 , max = 255 , message = "The title must be between 5 and 255 characters")
@@ -31,5 +31,5 @@ public record CourseCreateDto(
         @NotNull (message = "The course must have a refernce to a category")
         Long categoryId
 
-) {
+) implements CourseDto {
 }

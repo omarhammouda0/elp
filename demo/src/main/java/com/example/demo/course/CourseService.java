@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
@@ -46,38 +47,20 @@ public class CourseService {
     // ________________________Create__________________________
 
     @Transactional
-    public CourseResponseDto createCourse(@Valid CourseCreateDto dto) {
+    public CourseResponseDto createCourse(@Valid CourseCreateDto dto ,
+                                          Authentication authentication) {
+
         Objects.requireNonNull ( dto , "Course is required" );
 
-        String trimmedTitle = dto.title ( ).replaceAll ( "\\s+" , " " ).trim ( );
-        if (trimmedTitle.isEmpty ( ))
-            throw new IllegalArgumentException ( "Title is required" );
+        courseAccessValidation ( dto, authentication );
 
-        Long instructorId = dto.instructorId ( );
-        Long categoryId = dto.categoryId ( );
+        User instructor = validInstructor ( dto.instructorId () );
+        Category category = validCategory ( dto.categoryId () );
+        String trimmedTitle = validTrimmedTitle ( dto.title () );
+        BigDecimal price = validPrice ( dto.price () );
+        Status status = validStatus ( dto.status () );
 
-        User instructor = userRepository.findById ( instructorId ).orElseThrow (
-                () -> new NotFoundException ( ErrorCode.INSTRUCTOR_NOT_FOUND.toString ( ) , "Instructor not found" )
-        );
-        if (instructor.getRole ( ) != Role.INSTRUCTOR) {
-            throw new InvalidRoleException ( ErrorCode.USER_IS_NOT_AN_INSTRUCTOR.toString (),
-                    "The user with id " + dto.instructorId ( ) +
-                            " is not an instructor , please enter a valid User !" );
-        }
 
-        Category category = categoryRepository.findById ( categoryId ).orElseThrow (
-                () -> new NotFoundException ( ErrorCode.CATEGORY_NOT_FOUND.toString ( ) , "category not found" )
-        );
-
-        if (!category.isActive ( ))
-            throw new IllegalArgumentException ( "The category is not more active" );
-
-        if (courseRepository.existsByTitleIgnoreCase ( trimmedTitle )) {
-            throw new DuplicateResourceException (
-                    ErrorCode.TITLE_ALREADY_EXISTS.toString ( ) ,
-                    "A course with this title already exists"
-            );
-        }
 
         log.info ( "Creating new course: {}" , trimmedTitle );
 
@@ -86,16 +69,8 @@ public class CourseService {
         toSave.setTitle ( trimmedTitle );
         toSave.setInstructor ( instructor );
         toSave.setCategory ( category );
-
-
-        if (toSave.getPrice ( ) != null) {
-            if (toSave.getPrice ( ).signum ( ) < 0) throw new IllegalArgumentException ( "Price cannot be negative" );
-            toSave.setPrice ( toSave.getPrice ( ).setScale ( 2 , RoundingMode.HALF_UP ) );
-        }
-
-        if (toSave.getStatus ( ) == null) {
-            toSave.setStatus ( Status.DRAFT );
-        }
+        toSave.setPrice ( price );
+        toSave.setStatus ( status );
 
         Course savedCourse = courseRepository.save ( toSave );
         return courseMapper.toCourseDto ( savedCourse );
@@ -238,7 +213,9 @@ public class CourseService {
     // ________________________Update__________________________
 
     @Transactional
-    public CourseResponseDto updateCourse(Long courseId , @Valid CourseUpdateDto dto) {
+    public CourseResponseDto updateCourse(Long courseId , @Valid CourseUpdateDto dto ,
+                                          Authentication authentication) {
+
         Objects.requireNonNull ( dto , "dto is required" );
         Objects.requireNonNull ( courseId , "course Id is required" );
 
@@ -247,41 +224,29 @@ public class CourseService {
                         ErrorCode.COURSE_NOT_FOUND.toString ( ) , "Course with id " + courseId + " not found" )
         );
 
-        if (dto.instructorId ( ) != null) {
-            User instructor = userRepository.findById ( dto.instructorId ( ) ).orElseThrow (
-                    () -> new NotFoundException (
-                            ErrorCode.INSTRUCTOR_NOT_FOUND.toString ( ) , "Instructor with id " + dto.instructorId ( ) + " not found" )
-            );
-            if (instructor.getRole ( ) != Role.INSTRUCTOR) {
-                throw new InvalidRoleException ( ErrorCode.USER_IS_NOT_AN_INSTRUCTOR.toString (),
-                        "The user with id " + dto.instructorId ( ) +
-                                " is not an instructor , please enter a valid User !" );
-            }
+        courseUpdateAccessValidation ( course , authentication );
+
+        if (dto.instructorId () != null) {
+
+            var instructor = validInstructor ( dto.instructorId ( ) );
+            isAdmin ( authentication );
             course.setInstructor ( instructor );
+
         }
 
-        if (dto.categoryId ( ) != null) {
-            Category category = categoryRepository.findById ( dto.categoryId ( ) ).orElseThrow (
-                    () -> new NotFoundException (
-                            ErrorCode.CATEGORY_NOT_FOUND.toString ( ) , "Category with id " + dto.categoryId ( ) + " not found" )
-            );
+        if (dto.categoryId () != null) {
 
-            if (!category.isActive ( ))
-                throw new IllegalArgumentException ( "The category is not more active" );
-
+            var category = validCategory ( dto.categoryId ( ) );
             course.setCategory ( category );
         }
 
-        if (dto.title ( ) != null) {
-            String trimmedTitle = dto.title ( ).replaceAll ( "\\s+" , " " ).trim ( );
-            if (trimmedTitle.isEmpty ( )) throw new IllegalArgumentException ( "Title cannot be empty" );
-            if (courseRepository.existsByTitleIgnoreCaseAndIdNot ( trimmedTitle , courseId )) {
-                throw new DuplicateResourceException (
-                        ErrorCode.COURSE_ALREADY_EXISTS.toString ( ) ,
-                        "A course with this title " + trimmedTitle + " already exists" );
-            }
+
+        if (dto.title () != null) {
+
+            var trimmedTitle = validTrimmedTitle ( dto.title ( ) );
             course.setTitle ( trimmedTitle );
         }
+
 
         if (dto.description ( ) != null)
             course.setDescription ( dto.description ( ).replaceAll ( "\\s+" , " " ).trim ( ) );
@@ -294,10 +259,20 @@ public class CourseService {
             course.setDuration ( dto.duration ( ) );
         }
 
-        if (dto.price ( ) != null) {
-            if (dto.price ( ).signum ( ) < 0) throw new IllegalArgumentException ( "Price cannot be negative" );
-            course.setPrice ( dto.price ( ).setScale ( 2 , RoundingMode.HALF_UP ) );
+        if (dto.price () != null) {
+
+            var newPrice = validPrice ( dto.price ( ) );
+            var oldPrice = course.getPrice ();
+
+            if (!oldPrice.equals ( newPrice )) {
+                log.warn ( "Price for the course {} changed from {} to {} by user {} " ,
+                        courseId , oldPrice , newPrice , authentication.getName ( ) );
+            }
+
+            course.setPrice ( newPrice );
+
         }
+
 
         if (dto.level ( ) != null)
             course.setLevel ( dto.level ( ) );
@@ -326,51 +301,195 @@ public class CourseService {
                 if (course.getStatus ( ) == Status.PUBLISHED) {
                     throw new IllegalArgumentException ( "Cannot draft an published course" );
                 }
-
             }
-
-
             course.setStatus ( dto.status ( ) );
+        }
 
+        log.info ( "Updating course ID: {}" , courseId );
+
+        Course updatedCourse = courseRepository.save ( course );
+        return courseMapper.toCourseDto ( updatedCourse );
+    }
+
+    // ________________________Archive__________________________
+
+    @Transactional
+    public void archiveCourse(Long courseId , Authentication authentication) {
+        Objects.requireNonNull ( courseId , "course Id is required" );
+
+        Course course = archiveCourseValidation ( courseId , authentication );
+        log.info ( "Archiving course ID: {}" , courseId );
+
+        course.setStatus ( Status.ARCHIVED );
+        courseRepository.save ( course );
+
+    }
+
+
+    private  void courseAccessValidation(CourseCreateDto dto , Authentication authentication) {
+
+        User currentUser = userRepository.findByEmailIgnoreCase ( authentication.getName ( ) ).orElseThrow (
+                () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString ( ) ,
+                        "User with id: " + authentication.getName ( ) + " not found"
+                ) );
+
+        if (currentUser.getRole ( ) == Role.INSTRUCTOR
+                && !dto.instructorId ( ).equals ( currentUser.getId ( ) )) {
+
+            log.warn ( "Instructor with ID: {} attempted to manage course  which they do not own" ,
+                    currentUser.getId ( ) );
+
+            throw new SecurityException ( "Instructors can only manage their own courses" );
+        }
+
+        if (!currentUser.isActive ( )) {
+
+            log.warn ( "Inactive user with ID: {} attempted to manage a course " ,
+                    currentUser.getId ( ) );
+
+            throw new SecurityException ( "Inactive users cannot manage courses" );
         }
 
 
-        log.info("Updating course ID: {}", courseId);
-
-        Course updatedCourse = courseRepository.save(course);
-        return courseMapper.toCourseDto(updatedCourse);
     }
 
-    // ________________________Delete (Archive)__________________________
+    private void courseUpdateAccessValidation
+            (Course course , Authentication authentication) {
 
-    @Transactional
-    public void archiveCourse(Long courseId) {
-        Objects.requireNonNull(courseId, "course Id is required");
+        var currentUser = userRepository.findByEmailIgnoreCase ( authentication.getName ( ) ).orElseThrow (
+                () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString ( ) ,
+                        "User with id: " + authentication.getName ( ) + " not found"
+                ) );
 
-        Course course = courseRepository.findById(courseId).orElseThrow(
-                () -> new NotFoundException(
-                        ErrorCode.COURSE_NOT_FOUND.toString(), "Course with id " + courseId + " not found")
+        if (currentUser.getRole ( ) == Role.ADMIN)
+            return;
+
+        Long courseId = course.getId ( );
+
+        if (!currentUser.isActive ( )) {
+
+            log.warn ( "Inactive user with the ID: {} attempted to manage a course {} " ,
+                    currentUser.getId ( ) , courseId );
+
+            throw new SecurityException ( "Inactive users cannot manage courses" );
+        }
+
+
+        if (!course.getInstructor ( ).getId ( ).equals ( currentUser.getId ( ) )) {
+
+            log.warn ( "Instructor with ID: {} attempted to update course ID: {} which they do not own" ,
+                    currentUser.getId ( ) , courseId );
+
+            throw new SecurityException ( "Instructors can only update their own courses" );
+        }
+
+    }
+
+
+    private void isAdmin(Authentication authentication) {
+
+        var currentUser = userRepository.findByEmailIgnoreCase ( authentication.getName ( ) ).orElseThrow (
+                () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString ( ) ,
+                        "User with id: " + authentication.getName ( ) + " not found"
+                ) );
+
+        if (currentUser.getRole ( ) != Role.ADMIN) {
+            throw new SecurityException ( "Only admins can perform this action" );
+        }
+    }
+
+    private User validInstructor(Long id) {
+
+        User instructor = userRepository.findById ( id ).orElseThrow (
+                () -> new NotFoundException ( ErrorCode.INSTRUCTOR_NOT_FOUND.toString ( ) , "Instructor not found" )
+        );
+        if (instructor.getRole ( ) != Role.INSTRUCTOR)
+
+            throw new InvalidRoleException ( ErrorCode.USER_IS_NOT_AN_INSTRUCTOR.toString ( ) ,
+                    "The user with id " + id +
+                            " is not an instructor , please enter a valid User !" );
+
+        if (!instructor.isActive ( ))
+            throw new IllegalArgumentException ( "The instructor is not more active" );
+
+        return instructor;
+    }
+
+    private Category validCategory(Long id) {
+
+        Category category = categoryRepository.findById ( id ).orElseThrow (
+                () -> new NotFoundException ( ErrorCode.CATEGORY_NOT_FOUND.toString ( ) , "Category not found" )
+        );
+        if (!category.isActive ( ))
+            throw new IllegalArgumentException ( "The category is not more active" );
+
+        return category;
+    }
+
+    private String validTrimmedTitle(String title) {
+
+        String trimmedTitle = title.replaceAll ( "\\s+" , " " ).trim ( );
+
+        if (trimmedTitle.isEmpty ( )) throw new IllegalArgumentException ( "Title cannot be empty" );
+
+        if (courseRepository.existsByTitleIgnoreCase ( trimmedTitle )) {
+            throw new DuplicateResourceException (
+                    ErrorCode.TITLE_ALREADY_EXISTS.toString ( ) ,
+                    "A course with this title already exists"
+            );
+        }
+
+        return trimmedTitle;
+    }
+
+    private BigDecimal validPrice(BigDecimal price) {
+
+        if (price == null)
+            return BigDecimal.ZERO;
+
+        else if (price.signum ( ) < 0)
+            throw new IllegalArgumentException ( "Price cannot be negative" );
+
+        return price.setScale ( 2 , RoundingMode.HALF_UP );
+
+    }
+
+    private Status validStatus(Status status) {
+        if (status == null) {
+            return Status.DRAFT;
+        }
+        return status;
+    }
+
+    private Course archiveCourseValidation(Long id , Authentication authentication) {
+
+        var currentUser = userRepository.findByEmailIgnoreCase ( authentication.getName ( ) ).orElseThrow (
+                () -> new NotFoundException ( ErrorCode.USER_NOT_FOUND.toString ( ) ,
+                        "User with id: " + authentication.getName ( ) + " not found"
+                ) );
+
+        if (!currentUser.getRole ( ).equals ( Role.ADMIN )) {
+            throw new SecurityException ( "Only admins can archive courses" );
+        }
+
+        var course = courseRepository.findById ( id ).orElseThrow (
+                () -> new NotFoundException (
+                        ErrorCode.COURSE_NOT_FOUND.toString ( ) , "Course with id " + id + " not found" )
         );
 
-
-        if (course.getStatus() == Status.ARCHIVED) {
+        if (course.getStatus ( ) == Status.ARCHIVED) {
             throw new IllegalStateException ( "Course is already archived" );
         }
 
-            if (moduleRepository.findByCourseIdAndIsActive ( courseId ).isPresent ( )) {
-                throw new com.example.demo.exception.types.IllegalArgumentException (
-                        ErrorCode.COURSE_HAS_ACTIVE_MODULES.toString ( ) ,
-                        "Cannot archive course with active modules. Please deactivate or remove active modules first."
-                );
-            }
-
-
-        course.setStatus(Status.ARCHIVED);
-        courseRepository.save(course);
-
+        if (moduleRepository.findByCourseIdAndIsActive ( course.getId ( ) ).isPresent ( )) {
+            throw new com.example.demo.exception.types.IllegalArgumentException (
+                    ErrorCode.COURSE_HAS_ACTIVE_MODULES.toString ( ) ,
+                    "Cannot archive course with active modules. Please deactivate or remove active modules first."
+            );
+        }
+        return course;
     }
 }
-
 
 
 

@@ -7,6 +7,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.List;
@@ -82,20 +84,31 @@ public class CourseController {
     }
 
     @PostMapping
-    public ResponseEntity <CourseResponseDto> createCourse (@Valid @RequestBody CourseCreateDto dto) {
-        return ResponseEntity.status ( HttpStatus.CREATED ).body ( courseService.createCourse (dto) );
+    @PreAuthorize ("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+
+    public ResponseEntity <CourseResponseDto> createCourse (@Valid @RequestBody CourseCreateDto dto ,
+                                                            Authentication authentication) {
+
+        return ResponseEntity.status ( HttpStatus.CREATED ).body ( courseService.createCourse (dto , authentication) );
     }
 
     @PutMapping ("/{id}")
-    public ResponseEntity <CourseResponseDto> updateCourse( @PathVariable Long id ,
-                                                            @Valid @RequestBody CourseUpdateDto dto) {
+    @PreAuthorize ("hasAnyRole('ADMIN', 'INSTRUCTOR')")
 
-        return ResponseEntity.ok ( courseService.updateCourse ( id , dto ) );
+    public ResponseEntity <CourseResponseDto> updateCourse( @PathVariable Long id ,
+                                                            @Valid @RequestBody CourseUpdateDto dto ,
+                                                            Authentication authentication) {
+
+        return ResponseEntity.ok ( courseService.updateCourse ( id , dto , authentication ) );
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity <Void> deleteCourse(@PathVariable Long id) {
-        courseService.archiveCourse (id);
+    @PreAuthorize ("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+
+    public ResponseEntity <Void> deleteCourse(@PathVariable Long id ,
+                                              Authentication authentication) {
+
+        courseService.archiveCourse (id , authentication);
         return ResponseEntity.noContent().build();
     }
 

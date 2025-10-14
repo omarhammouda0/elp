@@ -17,6 +17,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.HttpClientErrorException;
 
 import javax.management.OperationsException;
 import java.time.Instant;
@@ -164,8 +165,6 @@ public class ApiExceptionHandler {
         pd.setProperty("path", req.getRequestURI());
         return pd;
     }
-
-
 
 
 }
