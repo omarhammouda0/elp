@@ -6,10 +6,17 @@ import com.example.demo.exception.model.ErrorCode;
 import com.example.demo.exception.types.DuplicateResourceException;
 import com.example.demo.exception.types.NotFoundException;
 import com.example.demo.course.CourseRepository;
+import com.example.demo.user.Role;
+import com.example.demo.user.User;
+import com.example.demo.user.UserCreationDto;
+import com.example.demo.user.UserRepository;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,25 +24,29 @@ import java.util.List;
 import java.util.Objects;
 
 @Slf4j
+@RequiredArgsConstructor
 @Service
 public class ModuleService {
 
     private final ModuleRepository moduleRepository;
     private final ModuleMapper moduleMapper;
     private final CourseRepository courseRepository;
+    private  final UserRepository userRepository;
 
-    public ModuleService(ModuleRepository moduleRepository , ModuleMapper moduleMapper , CourseRepository courseRepository) {
-        this.moduleRepository = moduleRepository;
-        this.moduleMapper = moduleMapper;
-        this.courseRepository = courseRepository;
-    }
 
 //     ________________________Create__________________________
 
     @Transactional
-    public ModuleResponseDto createModule(@Valid ModuleCreationDto dto) {
+    public ModuleResponseDto createModule(@Valid ModuleCreationDto dto ,
+                                          Authentication authentication) {
 
         Objects.requireNonNull ( dto , "module cannot be null" );
+
+        var curruntUser = getCurrentUser ( authentication );
+        validateCurrentUserActivation (  curruntUser );
+        validateModuleOwnershipForCreate ( dto , curruntUser );
+
+
         Long courseId = dto.courseId ( );
 
         Integer lastOrderIndex = moduleRepository.findLastOrderIndexByCourseId ( courseId );
@@ -118,13 +129,22 @@ public class ModuleService {
 
 
     @Transactional
-    public ModuleResponseDto updateModule(Long id, @Valid ModuleUpdateDto dto) {
+    public ModuleResponseDto updateModule(Long id,
+                                          @Valid ModuleUpdateDto dto ,
+                                          Authentication authentication)
+
+    {
         Objects.requireNonNull(id, "id is required");
         Objects.requireNonNull(dto, "module cannot be null");
 
         Module toUpdate = moduleRepository.findById(id).orElseThrow(() ->
                 new NotFoundException(ErrorCode.MODULE_NOT_FOUND.toString(),
                         "Module with id " + id + " not found"));
+
+        var curruntUser = getCurrentUser ( authentication );
+        validateCurrentUserActivation (  curruntUser );
+        validateModuleOwnershipForUpdate ( id , curruntUser );
+
 
         Long originalCourseId = toUpdate.getCourse().getId();
         boolean courseChanged = false;
@@ -154,10 +174,19 @@ public class ModuleService {
         }
 
         if (dto.courseId() != null && !dto.courseId().equals(originalCourseId)) {
+
+           if (! curruntUser.getRole ().equals ( Role.ADMIN )) {
+               throw new SecurityException (
+                       "Only admins can move modules between courses"
+               );
+           }
+
             Course newCourse = courseRepository.findById(dto.courseId())
                     .orElseThrow(() -> new NotFoundException(
                             ErrorCode.COURSE_NOT_FOUND.toString(),
                             "Course with id " + dto.courseId() + " not found"));
+
+
             toUpdate.setCourse(newCourse);
             courseChanged = true;
         }
@@ -172,7 +201,7 @@ public class ModuleService {
                 throw new IllegalArgumentException("Please use the delete endpoint");
             }
 
-            // Only reactivate if module was previously inactive
+
             if (!toUpdate.getIsActive()) {
                 toUpdate.setIsActive(true);
                 reactivated = true;
@@ -228,13 +257,19 @@ public class ModuleService {
     // ________________________Delete__________________________
 
     @Transactional
-    public void archiveModule(Long moduleId) {
+    public void archiveModule(Long moduleId , Authentication authentication) {
+
         Objects.requireNonNull ( moduleId , "Module Id is required" );
 
         Module module = moduleRepository.findById ( moduleId ).orElseThrow (
                 () -> new NotFoundException (
                         ErrorCode.MODULE_NOT_FOUND.toString ( ) ,
                         "Module with id " + moduleId + " not found" ) );
+
+
+        var curruntUser = getCurrentUser ( authentication );
+        validateCurrentUserActivation (  curruntUser );
+        validateModuleOwnershipForArchive ( module , curruntUser );
 
         if (!module.getIsActive ( )) {
             throw new IllegalStateException ( "Module is already archived" );
@@ -246,4 +281,75 @@ public class ModuleService {
 
         reorderModulesInCourse ( courseId );
     }
+
+
+
+
+
+
+    private User getCurrentUser (Authentication authentication) {
+
+      return userRepository.findByEmailIgnoreCase ( authentication.getName ( ) ).orElseThrow (
+              () -> new NotFoundException (
+                      ErrorCode.USER_NOT_FOUND.toString () ,
+                      "User with email " + authentication.getName ( ) + " not found"
+              )
+      );
+
+
+    }
+
+    private void validateCurrentUserActivation ( User user) {
+
+      if (! user.isActive ())
+          throw new IllegalStateException (
+                  "Only active users can manage resources"
+          );
+
+    }
+
+    private void validateModuleOwnershipForCreate (ModuleCreationDto dto, User currentUser) {
+
+
+        if (currentUser.getRole ().equals ( Role.ADMIN ))
+            return;
+
+        String currentUserEmail = currentUser.getEmail ( );
+        String instructorEmail = moduleRepository.getInstructorEmailByCourseId ( dto.courseId () );
+
+        if ( currentUser.getRole ().equals ( Role.INSTRUCTOR ) && ! currentUserEmail.equals ( instructorEmail )) {
+            throw new SecurityException ( "Instructors can only manage their own resources" );
+        }
+    }
+
+    private void validateModuleOwnershipForUpdate ( Long id , User currentUser) {
+
+
+        if (currentUser.getRole ().equals ( Role.ADMIN ))
+            return;
+
+        String currentUserEmail = currentUser.getEmail ( );
+        String instructorEmail = moduleRepository.getInstructorEmailByModuleId ( id );
+
+        if (currentUser.getRole ().equals ( Role.INSTRUCTOR ) &&
+                ! instructorEmail.equals ( currentUserEmail ))
+
+            throw new SecurityException ( "Instructors can only manage their own resources" );
+
+    }
+
+    private void validateModuleOwnershipForArchive (Module module , User currentUser) {
+
+        String currentUserEmail = currentUser.getEmail ( );
+        String instructorEmail = module.getCourse().getInstructor().getEmail();
+
+       if (currentUser.getRole ().equals ( Role.ADMIN ))
+           return;
+
+       if (! currentUserEmail.equals ( instructorEmail ))
+           throw new SecurityException ("Instructors can only manage their own resources");
+
+    }
+
+
 }

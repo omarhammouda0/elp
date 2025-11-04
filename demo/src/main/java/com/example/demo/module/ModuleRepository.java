@@ -1,9 +1,11 @@
 package com.example.demo.module;
+import com.example.demo.user.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
@@ -35,5 +37,15 @@ public interface ModuleRepository extends JpaRepository<Module,Long> {
             "m.isActive =true")
     Optional<java.lang.Module> findByCourseIdAndIsActive(@Param ( "course_id" ) Long courseId );
 
+
+    @Query ("select m.course.instructor.id from Module m ")
+    Optional <User> getCurrentUser (Authentication authentication);
+
+
+    @Query("SELECT c.instructor.email FROM Course c WHERE c.id = :courseId")
+    String getInstructorEmailByCourseId(@Param("courseId") Long courseId);
+
+    @Query("SELECT m.course.instructor.email FROM Module m WHERE m.id = :moduleId")
+    String getInstructorEmailByModuleId(@Param("moduleId") Long moduleId);
 
 }
