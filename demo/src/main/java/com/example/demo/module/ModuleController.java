@@ -7,6 +7,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,9 +24,14 @@ public class ModuleController {
 
     //     ________________________Create__________________________
 
+
     @PostMapping
-    public ResponseEntity <ModuleResponseDto> createModule (@Valid @RequestBody ModuleCreationDto dto) {
-        return ResponseEntity.status ( HttpStatus.CREATED ).body ( moduleService.createModule (dto) );
+    @PreAuthorize ("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+
+    public ResponseEntity <ModuleResponseDto> createModule (@Valid @RequestBody ModuleCreationDto dto ,
+                                                            Authentication authentication) {
+
+        return ResponseEntity.status ( HttpStatus.CREATED ).body ( moduleService.createModule (dto ,authentication) );
     }
 
 
@@ -52,17 +59,24 @@ public class ModuleController {
     //     ________________________Update__________________________
 
     @PutMapping ("/{id}")
-    public ResponseEntity <ModuleResponseDto> updateCourse( @PathVariable Long id ,
-                                                            @Valid @RequestBody ModuleUpdateDto dto) {
+    @PreAuthorize ("hasAnyRole('ADMIN', 'INSTRUCTOR')")
 
-        return ResponseEntity.ok ( moduleService.updateModule ( id , dto ) );
+    public ResponseEntity <ModuleResponseDto> updateCourse( @PathVariable Long id ,
+                                                            @Valid @RequestBody ModuleUpdateDto dto ,
+                                                            Authentication authentication) {
+
+        return ResponseEntity.ok ( moduleService.updateModule ( id , dto , authentication ) );
     }
 
     //     ________________________Delete__________________________
 
     @DeleteMapping("/{id}")
-    public ResponseEntity <Void> archiveModule (@PathVariable Long id) {
-        moduleService.archiveModule (id);
+    @PreAuthorize ("hasAnyRole('ADMIN', 'INSTRUCTOR')")
+
+    public ResponseEntity <Void> archiveModule (@PathVariable Long id ,
+                                                Authentication authentication) {
+
+        moduleService.archiveModule (id , authentication );
         return ResponseEntity.noContent().build();
     }
 
