@@ -1,5 +1,6 @@
 package com.example.demo.enrollment;
 
+import com.example.demo.user.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -33,8 +34,17 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment,Long> {
     )
     Page<Enrollment> findByInstructorId(Long instructorId , Pageable pageable);
 
+    @Query ("select e.course.instructor.email from Enrollment e where e.id = :enrollmentId ")
+    String findInstructorEmailByEnrollmentId (@Param ( "enrollmentId" ) Long enrollmentId );
 
-
+    @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END " +
+            "FROM Enrollment e " +
+            "WHERE e.user.id = :userId " +
+            "AND e.course.instructor.id = :instructorId")
+    boolean existsByUserIdAndInstructorId(@Param("userId") Long userId,
+                                          @Param("instructorId") Long instructorId);
 }
+
+
 
 
